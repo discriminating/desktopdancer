@@ -12,6 +12,8 @@
 NOTIFYICONDATAW nid;
 using namespace Gdiplus;
 
+//#define DEBUG
+
 // Locking movement
 typedef struct {
     bool IsDragging;
@@ -104,14 +106,12 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
         SetDlgItemTextW(hwndDlg, IDC_STATIC12, L" Y");
 
         SendMessage(GetDlgItem(hwndDlg, IDC_SLIDER2), TBM_SETPOS, 1, settingsPtr->offsetX);
-        std::cout << (settingsPtr->offsetX * 30) << std::endl;
         _snwprintf_s(buffer, _countof(buffer), L"%i pixels", (settingsPtr->offsetX * 30));
 
         SetDlgItemTextW(hwndDlg, IDC_STATIC8, buffer);
         SetWindowPos(settingsPtr->windowName, true);
 
         SendMessage(GetDlgItem(hwndDlg, IDC_SLIDER3), TBM_SETPOS, 1, settingsPtr->offsetY);
-        std::cout << (settingsPtr->offsetY * 30) << std::endl;
         _snwprintf_s(buffer, _countof(buffer), L"%i pixels", (settingsPtr->offsetY * 30));
 
         SetDlgItemTextW(hwndDlg, IDC_STATIC9, buffer);
@@ -127,6 +127,7 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
         EnumWindows(EnumWindowsProc, (LPARAM)GetDlgItem(hwndDlg, IDC_COMBO1));
         SendMessage(GetDlgItem(hwndDlg, IDC_COMBO1), CB_SETDROPPEDWIDTH, 200, 0);
 
+        // This allows the ComboBox to display more items, I don't even fucking know how.
         RECT rect;
         GetWindowRect(GetDlgItem(hwndDlg, IDC_COMBO1), &rect);
 
@@ -146,7 +147,6 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 
             // Set the text of the selected item in the ComboBox
             SendMessage(hComboBox, CB_SELECTSTRING, (WPARAM)-1, (LPARAM)settingsPtr->windowName);
-            std::cout << "HEELLEOEOLLEOEOEOOo" << std::endl;
 
         } else {
             EnableWindow(GetDlgItem(hwndDlg, IDC_SLIDER2), false);
@@ -192,7 +192,6 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
         if (LOWORD(wParam) == IDC_CHECK2 && HIWORD(wParam) == BN_CLICKED) {
             bool value = IsDlgButtonChecked(hwndDlg, IDC_CHECK2);
             settingsPtr->AttachToWindow = value;
-            std::cout << settingsPtr->AttachToWindow << std::endl;
 
             EnableWindow(GetDlgItem(hwndDlg, IDC_SLIDER2), value);
             EnableWindow(GetDlgItem(hwndDlg, IDC_SLIDER3), value);
@@ -232,7 +231,6 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
         if (hwndScrollBar == GetDlgItem(hwndDlg, IDC_SLIDER2)) {
             settingsPtr->offsetX = SendMessage(GetDlgItem(hwndDlg, IDC_SLIDER2), TBM_GETPOS, 0, 0);
 
-            std::cout << (settingsPtr->offsetX * 30) << std::endl;
             _snwprintf_s(buffer, _countof(buffer), L"%i pixels", (settingsPtr->offsetX * 30));
 
             SetDlgItemTextW(hwndDlg, IDC_STATIC8, buffer);
@@ -242,7 +240,6 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
         if (hwndScrollBar == GetDlgItem(hwndDlg, IDC_SLIDER3)) {
             settingsPtr->offsetY = SendMessage(GetDlgItem(hwndDlg, IDC_SLIDER3), TBM_GETPOS, 0, 0);
 
-            std::cout << (settingsPtr->offsetY * 30) << std::endl;
             _snwprintf_s(buffer, _countof(buffer), L"%i pixels", (settingsPtr->offsetY * 30));
 
             SetDlgItemTextW(hwndDlg, IDC_STATIC9, buffer);
@@ -364,7 +361,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 }
 
 int main() {
-    //FreeConsole();
+#ifndef DEBUG
+    FreeConsole();
+#endif
 
     settingsPtr->TopMost                = false;
     settingsPtr->offsetX                = 0;
