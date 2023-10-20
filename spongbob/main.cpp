@@ -57,6 +57,7 @@ void SetWindowPos(wchar_t windowName[], bool forceUpdate) {
 
     if (targetRect.left != settingsPtr->oldrectptr->left || targetRect.top != settingsPtr->oldrectptr->top ||
         targetRect.right != settingsPtr->oldrectptr->right || targetRect.bottom != settingsPtr->oldrectptr->bottom || forceUpdate) {
+        if (!settingsPtr->AttachToWindow && !forceUpdate) return;
 
         int newX = targetRect.left + (settingsPtr->offsetX * 30);
         int newY = targetRect.top + (settingsPtr->offsetY * 30);
@@ -122,7 +123,6 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
         SetDlgItemTextW(hwndDlg, IDC_CHECK3, L"Top Most");
         CheckDlgButton(hwndDlg, IDC_CHECK3, (settingsPtr->TopMost) ? BST_CHECKED : BST_UNCHECKED);
 
-        CheckDlgButton(hwndDlg, IDC_CHECK1, !mSettings->CanDrag);
         
         EnumWindows(EnumWindowsProc, (LPARAM)GetDlgItem(hwndDlg, IDC_COMBO1));
         SendMessage(GetDlgItem(hwndDlg, IDC_COMBO1), CB_SETDROPPEDWIDTH, 200, 0);
@@ -137,6 +137,8 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
             EnableWindow(GetDlgItem(hwndDlg, IDC_SLIDER2), true);
             EnableWindow(GetDlgItem(hwndDlg, IDC_SLIDER3), true);
             EnableWindow(GetDlgItem(hwndDlg, IDC_COMBO1), true);
+            EnableWindow(GetDlgItem(hwndDlg, IDC_CHECK1), false);
+            CheckDlgButton(hwndDlg, IDC_CHECK1, BST_CHECKED);
 
             CheckDlgButton(hwndDlg, IDC_CHECK2, BST_CHECKED);
 
@@ -149,6 +151,7 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
         } else {
             EnableWindow(GetDlgItem(hwndDlg, IDC_SLIDER2), false);
             EnableWindow(GetDlgItem(hwndDlg, IDC_SLIDER3), false);
+            CheckDlgButton(hwndDlg, IDC_CHECK1, !mSettings->CanDrag);
         }
 
         return (INT_PTR)TRUE;
@@ -182,8 +185,9 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
             exit(0);
         }
 
-        if (LOWORD(wParam) == IDC_CHECK1 && HIWORD(wParam) == BN_CLICKED)
+        if (LOWORD(wParam) == IDC_CHECK1 && HIWORD(wParam) == BN_CLICKED) {
             mSettings->CanDrag = !IsDlgButtonChecked(hwndDlg, IDC_CHECK1);
+        }
 
         if (LOWORD(wParam) == IDC_CHECK2 && HIWORD(wParam) == BN_CLICKED) {
             bool value = IsDlgButtonChecked(hwndDlg, IDC_CHECK2);
@@ -193,6 +197,13 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
             EnableWindow(GetDlgItem(hwndDlg, IDC_SLIDER2), value);
             EnableWindow(GetDlgItem(hwndDlg, IDC_SLIDER3), value);
             EnableWindow(GetDlgItem(hwndDlg, IDC_COMBO1), value);
+            EnableWindow(GetDlgItem(hwndDlg, IDC_CHECK1), !value);
+
+            if (!IsDlgButtonChecked(hwndDlg, IDC_CHECK1)) {
+                CheckDlgButton(hwndDlg, IDC_CHECK1, value);
+                mSettings->CanDrag = !value;
+            }
+
         }
 
         if (LOWORD(wParam) == IDC_CHECK3 && HIWORD(wParam) == BN_CLICKED) {
