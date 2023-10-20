@@ -9,33 +9,27 @@
 
 #pragma comment(lib, "gdiplus.lib")
 
-#define IDM_CONFIG 1
-#define IDM_EXIT 2
-#define TBM_GETPOS (WM_USER)
-
 NOTIFYICONDATAW nid;
 using namespace Gdiplus;
 
-bool isTopMost = false;
-
 // Locking movement
-bool isDragging = false;
-bool canDrag = false;
-POINT lastMousePos;
+typedef struct {
+    bool IsDragging;
+    bool CanDrag;
+    POINT LastMousePos;
+} mouseSettings;
 
-// Attaching to window
-RECT oldrect;
-RECT* oldrectptr = &oldrect;
-wchar_t g_windowName[260];
+mouseSettings* mSettings = new mouseSettings;
 
 HWND GLOBALHWND;
 HWND DIALOGHWND;
 
-// Picking file path
 LPCWSTR NAME_CONSTANT;
 WCHAR filePath[MAX_PATH]; // To store the selected file path
 
 typedef struct {
+    RECT oldrect;
+    RECT* oldrectptr;
     int FrameDelaySliderPos;
     int FrameMSWaitTime;
     bool LockMovement;
@@ -61,18 +55,18 @@ void SetWindowPos(wchar_t windowName[], bool forceUpdate) {
     RECT targetRect;
     GetWindowRect(FindWindowW(NULL, windowName), &targetRect);
 
-    if (targetRect.left != oldrectptr->left || targetRect.top != oldrectptr->top ||
-        targetRect.right != oldrectptr->right || targetRect.bottom != oldrectptr->bottom || forceUpdate) {
+    if (targetRect.left != settingsPtr->oldrectptr->left || targetRect.top != settingsPtr->oldrectptr->top ||
+        targetRect.right != settingsPtr->oldrectptr->right || targetRect.bottom != settingsPtr->oldrectptr->bottom || forceUpdate) {
 
         int newX = targetRect.left + (settingsPtr->offsetX * 30);
         int newY = targetRect.top + (settingsPtr->offsetY * 30);
 
-        SetWindowPos(GLOBALHWND, (isTopMost) ? HWND_TOPMOST : HWND_NOTOPMOST, newX, newY, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+        SetWindowPos(GLOBALHWND, (settingsPtr->TopMost) ? HWND_TOPMOST : HWND_NOTOPMOST, newX, newY, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
 
-        oldrectptr->left = targetRect.left;
-        oldrectptr->right = targetRect.right;
-        oldrectptr->top = targetRect.top;
-        oldrectptr->bottom = targetRect.bottom;
+        settingsPtr->oldrectptr->left = targetRect.left;
+        settingsPtr->oldrectptr->right = targetRect.right;
+        settingsPtr->oldrectptr->top = targetRect.top;
+        settingsPtr->oldrectptr->bottom = targetRect.bottom;
     }
 }
 
@@ -126,9 +120,9 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
         SetDlgItemTextW(hwndDlg, IDC_CHECK2, L"Attach to window");
 
         SetDlgItemTextW(hwndDlg, IDC_CHECK3, L"Top Most");
-        CheckDlgButton(hwndDlg, IDC_CHECK3, (isTopMost) ? BST_CHECKED : BST_UNCHECKED);
+        CheckDlgButton(hwndDlg, IDC_CHECK3, (settingsPtr->TopMost) ? BST_CHECKED : BST_UNCHECKED);
 
-        CheckDlgButton(hwndDlg, IDC_CHECK1, !canDrag);
+        CheckDlgButton(hwndDlg, IDC_CHECK1, !mSettings->CanDrag);
         
         EnumWindows(EnumWindowsProc, (LPARAM)GetDlgItem(hwndDlg, IDC_COMBO1));
         SendMessage(GetDlgItem(hwndDlg, IDC_COMBO1), CB_SETDROPPEDWIDTH, 200, 0);
@@ -189,7 +183,7 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
         }
 
         if (LOWORD(wParam) == IDC_CHECK1 && HIWORD(wParam) == BN_CLICKED)
-            canDrag = !IsDlgButtonChecked(hwndDlg, IDC_CHECK1);
+            mSettings->CanDrag = !IsDlgButtonChecked(hwndDlg, IDC_CHECK1);
 
         if (LOWORD(wParam) == IDC_CHECK2 && HIWORD(wParam) == BN_CLICKED) {
             bool value = IsDlgButtonChecked(hwndDlg, IDC_CHECK2);
@@ -202,7 +196,7 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
         }
 
         if (LOWORD(wParam) == IDC_CHECK3 && HIWORD(wParam) == BN_CLICKED) {
-            bool isTopMost = IsDlgButtonChecked(hwndDlg, IDC_CHECK2);
+            settingsPtr->TopMost = IsDlgButtonChecked(hwndDlg, IDC_CHECK2);
             SetWindowPos(settingsPtr->windowName, true);
         }
 
@@ -293,7 +287,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         Graphics graphics(hdc);
 
         if (image.GetLastStatus() == Ok && frameCount > 1) {
-            DWORD currentTime = GetTickCount();
+            DWORD currentTime = GetTickCount64();
             DWORD elapsed = currentTime - frameStartTime;
 
             if (elapsed >= settingsPtr->FrameMSWaitTime) { // Avoids calling this every single frame
@@ -317,29 +311,29 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
     case WM_LBUTTONDOWN:
         SetCapture(hwnd);
-        if (canDrag) isDragging = true;
-        GetCursorPos(&lastMousePos);
+        if (mSettings->CanDrag) mSettings->IsDragging = true;
+        GetCursorPos(&mSettings->LastMousePos);
         break;
 
     case WM_MOUSEMOVE:
-        if (isDragging) {
+        if (mSettings->IsDragging) {
             POINT currentMousePos;
             GetCursorPos(&currentMousePos);
-            int dx = currentMousePos.x - lastMousePos.x;
-            int dy = currentMousePos.y - lastMousePos.y;
+            int dx = currentMousePos.x - mSettings->LastMousePos.x;
+            int dy = currentMousePos.y - mSettings->LastMousePos.y;
 
             RECT windowRect;
             GetWindowRect(hwnd, &windowRect);
 
             SetWindowPos(hwnd, (HWND)HWND_TOPMOST, windowRect.left + dx, windowRect.top + dy, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
 
-            lastMousePos = currentMousePos;
+            mSettings->LastMousePos = currentMousePos;
         }
         break;
 
     case WM_LBUTTONUP:
         ReleaseCapture();
-        isDragging = false;
+        mSettings->IsDragging = false;
         break;
 
     case WM_APP + 1:
@@ -361,13 +355,18 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 int main() {
     //FreeConsole();
 
-    settingsPtr->FrameDelaySliderPos = 0;
-    settingsPtr->FrameMSWaitTime = 0;
-    settingsPtr->LockMovement = true;
-    settingsPtr->AttachToWindow = false;
-    settingsPtr->TopMost = false;
-    settingsPtr->offsetX = 0;
-    settingsPtr->offsetY = 0;
+    settingsPtr->TopMost                = false;
+    settingsPtr->offsetX                = 0;
+    settingsPtr->offsetY                = 0;
+    settingsPtr->oldrectptr             = &settingsPtr->oldrect;
+    settingsPtr->LockMovement           = true;
+    settingsPtr->AttachToWindow         = false;
+    settingsPtr->FrameMSWaitTime        = 0;
+    settingsPtr->FrameDelaySliderPos    = 0;
+
+    mSettings->CanDrag                  = false;
+    mSettings->IsDragging               = false;
+
 
 
     int result = DialogBoxW(0, MAKEINTRESOURCE(IDD_DIALOG1), NULL, DialogProc);
