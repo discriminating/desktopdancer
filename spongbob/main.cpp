@@ -12,7 +12,7 @@
 NOTIFYICONDATAW nid;
 using namespace Gdiplus;
 
-//#define DEBUG
+#define DEBUG
 
 // Locking movement
 typedef struct {
@@ -54,12 +54,13 @@ BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
 }
 
 void SetWindowPos(wchar_t windowName[], bool forceUpdate) {
+    if (!settingsPtr->AttachToWindow) return;
+
     RECT targetRect;
     GetWindowRect(FindWindowW(NULL, windowName), &targetRect);
 
     if (targetRect.left != settingsPtr->oldrectptr->left || targetRect.top != settingsPtr->oldrectptr->top ||
         targetRect.right != settingsPtr->oldrectptr->right || targetRect.bottom != settingsPtr->oldrectptr->bottom || forceUpdate) {
-        if (!settingsPtr->AttachToWindow && !forceUpdate) return;
 
         int newX = targetRect.left + (settingsPtr->offsetX * 30);
         int newY = targetRect.top + (settingsPtr->offsetY * 30);
@@ -84,7 +85,7 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 
         SetDlgItemTextW(hwndDlg, IDD_DIALOG1, L"Config");
         SetDlgItemTextW(hwndDlg, IDC_STATIC0, L"Please configure the settings below");
-        SetDlgItemTextW(hwndDlg, IDC_STATIC2, L"Delay in frames (ms)");
+        SetDlgItemTextW(hwndDlg, IDC_STATIC2, L"Custom delay in frames (ms)");
 
         SendMessage(GetDlgItem(hwndDlg, IDC_SLIDER1), TBM_SETPOS, 1, settingsPtr->FrameDelaySliderPos);
 
@@ -92,10 +93,16 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
         _snwprintf_s(buffer, _countof(buffer), L"%.2f ms", percentage * 100.0);
         settingsPtr->FrameMSWaitTime = (int)(percentage * 100);
 
-        SetDlgItemTextW(hwndDlg, IDC_STATIC3, buffer);
+        SetDlgItemTextW(hwndDlg, IDC_STATIC3, (percentage == 0.0) ? L"gif fps" : buffer);
 
-        _snwprintf_s(buffer, _countof(buffer), L"%.2f fps", (1 / percentage * 10));
-        SetDlgItemTextW(hwndDlg, IDC_STATIC6, buffer);
+        if (percentage == 0.0) {
+            SetDlgItemTextW(hwndDlg, IDC_STATIC6, L"gif fps");
+        }
+        else {
+            _snwprintf_s(buffer, _countof(buffer), L"%.2f fps", (1 / percentage * 10));
+            SetDlgItemTextW(hwndDlg, IDC_STATIC6, buffer);
+        }
+
 
         SetDlgItemTextW(hwndDlg, IDC_STATIC4, L"<3");
 
@@ -157,11 +164,14 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
         return (INT_PTR)TRUE;
 
     case WM_COMMAND:
-        if (LOWORD(wParam) == IDOK)
-        {
-            if (wcslen(filePath) == 0) 
+        switch (LOWORD(wParam)) {
+        case IDOK: {
+            if (wcslen(filePath) == 0) {
                 MessageBox(0, L"Please select an image/gif file", L"Error", MB_ICONERROR);
-            else {
+                break;
+            }
+
+            if (settingsPtr->AttachToWindow) {
                 HWND hComboBox = GetDlgItem(hwndDlg, IDC_COMBO1);
 
                 int selectedIndex = SendMessage(hComboBox, CB_GETCURSEL, 0, 0);
@@ -171,25 +181,32 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
                     SendMessage(hComboBox, CB_GETLBTEXT, selectedIndex, (LPARAM)buffer);
                     wcscpy_s(settingsPtr->windowName, buffer);
                 }
-
-                EndDialog(hwndDlg, IDOK);
             }
 
+            EndDialog(hwndDlg, IDOK);
+            
+            break;
         }
-        else if (LOWORD(wParam) == IDCANCEL) {
+
+        case IDCANCEL:
             memcpy(settingsPtr, clonedSettings, sizeof(settings));
             SetWindowPos(settingsPtr->windowName, true);
             EndDialog(hwndDlg, IDCANCEL);
-        }
-        else if (LOWORD(wParam) == IDEXIT) {
+            
+            break;
+
+        case IDEXIT: 
             exit(0);
-        }
+            break;
 
-        if (LOWORD(wParam) == IDC_CHECK1 && HIWORD(wParam) == BN_CLICKED) {
+        case IDC_CHECK1:
+            if (!HIWORD(wParam) == BN_CLICKED) break;
             mSettings->CanDrag = !IsDlgButtonChecked(hwndDlg, IDC_CHECK1);
-        }
+            break;
 
-        if (LOWORD(wParam) == IDC_CHECK2 && HIWORD(wParam) == BN_CLICKED) {
+        case IDC_CHECK2: {
+            if (!HIWORD(wParam) == BN_CLICKED) break;
+
             bool value = IsDlgButtonChecked(hwndDlg, IDC_CHECK2);
             settingsPtr->AttachToWindow = value;
 
@@ -203,11 +220,15 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
                 mSettings->CanDrag = !value;
             }
 
+            break;
         }
 
-        if (LOWORD(wParam) == IDC_CHECK3 && HIWORD(wParam) == BN_CLICKED) {
+        case IDC_CHECK3:
+            if (!HIWORD(wParam) == BN_CLICKED) break;
             settingsPtr->TopMost = IsDlgButtonChecked(hwndDlg, IDC_CHECK2);
             SetWindowPos(settingsPtr->windowName, true);
+            
+            break;
         }
 
         break;
@@ -222,10 +243,15 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
             _snwprintf_s(buffer, _countof(buffer), L"%.2f ms", percentage * 100.0);
             settingsPtr->FrameMSWaitTime = (int)(percentage * 100);
 
-            SetDlgItemTextW(hwndDlg, IDC_STATIC3, buffer);
+            SetDlgItemTextW(hwndDlg, IDC_STATIC3, (percentage == 0.0) ? L"gif fps" : buffer);
 
-            _snwprintf_s(buffer, _countof(buffer), L"%.2f fps", (1 / percentage * 10));
-            SetDlgItemTextW(hwndDlg, IDC_STATIC6, buffer);
+            if (percentage == 0.0) {
+                SetDlgItemTextW(hwndDlg, IDC_STATIC6, L"gif fps");
+            }
+            else {
+                _snwprintf_s(buffer, _countof(buffer), L"%.2f fps", (1 / percentage * 10));
+                SetDlgItemTextW(hwndDlg, IDC_STATIC6, buffer);
+            }
         }
 
         if (hwndScrollBar == GetDlgItem(hwndDlg, IDC_SLIDER2)) {
@@ -279,37 +305,64 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
     return (INT_PTR)FALSE;
 }
 
+int GetGifFrameDelay(Image& image, ULONG frame) {
+    PropertyItem item;
+
+    if (image.GetPropertyItem(PropertyTagFrameDelay, sizeof(item), &item) == Ok)
+        return static_cast<int>(*reinterpret_cast<WORD*>(item.value)) * 10;
+
+    return 1000 / 30;
+}
+
+DWORD WINAPI _UpdateWindow() {
+    while (true) {
+        SetWindowPos(settingsPtr->windowName, 0);
+    }
+
+    return 0;
+}
+
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     GLOBALHWND = hwnd;
     static Image image(static_cast<LPCWSTR>(filePath), FALSE);
     static ULONG frameCount = image.GetFrameCount(&FrameDimensionTime);
     static ULONG currentFrame = 0;
     static DWORD frameStartTime = GetTickCount();
+    static Bitmap offScreenBuffer(image.GetWidth(), image.GetHeight());
 
     switch (msg) {
     case WM_PAINT: {
-        SetWindowPos(settingsPtr->windowName, 0);
-
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
-        Graphics graphics(hdc);
 
         if (image.GetLastStatus() == Ok && frameCount > 1) {
             DWORD currentTime = GetTickCount64();
-            DWORD elapsed = currentTime - frameStartTime;
 
-            if (elapsed >= settingsPtr->FrameMSWaitTime) { // Avoids calling this every single frame
-                graphics.Clear(Color(0, 0, 0, 0));
+            int frameDelay = (settingsPtr->FrameMSWaitTime == 0) ? GetGifFrameDelay(image, currentFrame) : settingsPtr->FrameMSWaitTime;
+
+            if (currentTime - frameStartTime >= frameDelay) {
                 frameStartTime = currentTime;
                 currentFrame = (currentFrame + 1) % frameCount;
                 image.SelectActiveFrame(&FrameDimensionTime, currentFrame);
+
+                RECT clientRect;
+                GetClientRect(hwnd, &clientRect);
+                FillRect(hdc, &clientRect, (HBRUSH)GetStockObject(BLACK_BRUSH));
+
+                Graphics graphics(hdc);
                 graphics.DrawImage(&image, 0, 0, image.GetWidth(), image.GetHeight());
             }
 
-            InvalidateRect(hwnd, NULL, FALSE);
+            SetTimer(hwnd, 1, frameDelay, nullptr);
         }
 
         EndPaint(hwnd, &ps);
+        break;
+    }
+
+    case WM_TIMER: {
+        InvalidateRect(hwnd, nullptr, FALSE);
+        SetWindowPos(settingsPtr->windowName, 0);
         break;
     }
 
@@ -417,8 +470,11 @@ int main() {
 
     Shell_NotifyIconW(NIM_ADD, &nid);
 
+    HANDLE hUpdateThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)_UpdateWindow, NULL, 0, NULL);
+
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0)) {
+        //SetWindowPos(settingsPtr->windowName, 0);
         if (!IsDialogMessage(hwnd, &msg)) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
