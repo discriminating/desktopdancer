@@ -25,6 +25,7 @@ mouseSettings* mSettings = new mouseSettings;
 
 HWND GLOBALHWND;
 HWND DIALOGHWND;
+bool isDialogOpen;
 
 LPCWSTR NAME_CONSTANT;
 WCHAR filePath[MAX_PATH]; // To store the selected file path
@@ -81,6 +82,7 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 
     switch (uMsg) {
     case WM_INITDIALOG:
+        isDialogOpen = true;
         memcpy(clonedSettings, settingsPtr, sizeof(settings));
 
         SetDlgItemTextW(hwndDlg, IDD_DIALOG1, L"Config");
@@ -102,7 +104,6 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
             _snwprintf_s(buffer, _countof(buffer), L"%.2f fps", (1 / percentage * 10));
             SetDlgItemTextW(hwndDlg, IDC_STATIC6, buffer);
         }
-
 
         SetDlgItemTextW(hwndDlg, IDC_STATIC4, L"<3");
 
@@ -129,7 +130,6 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 
         SetDlgItemTextW(hwndDlg, IDC_CHECK3, L"Top Most");
         CheckDlgButton(hwndDlg, IDC_CHECK3, (settingsPtr->TopMost) ? BST_CHECKED : BST_UNCHECKED);
-
         
         EnumWindows(EnumWindowsProc, (LPARAM)GetDlgItem(hwndDlg, IDC_COMBO1));
         SendMessage(GetDlgItem(hwndDlg, IDC_COMBO1), CB_SETDROPPEDWIDTH, 200, 0);
@@ -183,6 +183,7 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
                 }
             }
 
+            isDialogOpen = false;
             EndDialog(hwndDlg, IDOK);
             
             break;
@@ -191,6 +192,8 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
         case IDCANCEL:
             memcpy(settingsPtr, clonedSettings, sizeof(settings));
             SetWindowPos(settingsPtr->windowName, true);
+            
+            isDialogOpen = false;
             EndDialog(hwndDlg, IDCANCEL);
             
             break;
@@ -399,7 +402,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
     case WM_APP + 1:
         if (lParam == 512) { // I forgot what macro 512 was know it works when you click on it in the tray though
-            HWND hConfigDlg = CreateDialog(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_DIALOG1), NULL, DialogProc);
+            HWND hConfigDlg = NULL;
+
+            if (isDialogOpen) hConfigDlg = DIALOGHWND;
+            else CreateDialog(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_DIALOG1), NULL, DialogProc);
+            
             if (hConfigDlg != NULL) {
                 ShowWindow(hConfigDlg, SW_SHOW);
                 SetForegroundWindow(hConfigDlg);
